@@ -144,3 +144,37 @@ export const signinHospital = async (req, res) => {
     res.status(500).json({ message: "Internal Server Error", error });
   }
 };
+
+export const searchHospitals = async (req, res) => {
+  const { query = "" } = req.query; // Extract search query from query parameters, default to empty string
+
+  try {
+    const hospitals = await prisma.hospital.findMany({
+      where: {
+        OR: [
+          {
+            name: {
+              contains: query,
+              mode: "insensitive", // Case-insensitive search
+            },
+          },
+          {
+            location: {
+              contains: query,
+              mode: "insensitive", // Case-insensitive search
+            },
+          },
+        ],
+      },
+      include: {
+        departments: true,
+        appointments: true,
+      },
+    });
+
+    res.status(200).json(hospitals);
+  } catch (error) {
+    console.error("Error searching hospitals:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
