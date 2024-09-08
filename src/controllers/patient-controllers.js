@@ -27,8 +27,16 @@ export const registerPatient = async (req, res) => {
         age: body.age,
         password: hashedPassword,
       },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        age: true,
+        password: false,
+      },
     });
 
+    // console.log(patient.id);
     const token = jwt.sign(
       { patientId: patient.id, email: patient.email },
       process.env.JWT_SECRET
@@ -48,46 +56,74 @@ export const registerPatient = async (req, res) => {
 };
 
 export const bookAppointment = async (req, res) => {
-  try {
-    const { patientId, hospitalId, date } = req.body;
+  const { hospitalId, departmentId, title, time } = req.body;
+  const patientId = req.patientId; // Get patient ID from authenticated user
 
-    // Validate that the required fields are provided
-    if (!patientId || !hospitalId || !date) {
-      return res.status(400).json({ message: "Missing required fields" });
+  if (!patientId) {
+    return res.status(400).json({ error: "PatientId not found" });
+  }
+
+  try {
+    // Validate input
+    if (!hospitalId || !departmentId || !title || !time) {
+      return res.status(400).json({ error: "All fields are required" });
     }
 
-    // Check if patient exists
+    // Check if the patient exists
     const patient = await prisma.patient.findUnique({
       where: { id: patientId },
     });
-    if (!patient) {
-      return res.status(404).json({ message: "Patient not found" });
-    }
+    if (!patient) return res.status(404).json({ error: "Patient not found" });
 
-    // Check if hospital exists
+    // Check if the hospital exists
     const hospital = await prisma.hospital.findUnique({
-      where: { id: hospitalId },
+      where: {
+        id: hospitalId,
+      },
     });
     if (!hospital) {
-      return res.status(404).json({ message: "Hospital not found" });
+      return res.status(400).json({
+        error: "Hospital not found",
+      });
     }
 
-    // Book appointment
-    const newAppointment = await prisma.appointment.create({
-      data: {
-        date: new Date(date),
-        patient: { connect: { id: patientId } },
-        hospital: { connect: { id: hospitalId } },
+    // Check if the department exists in the given hospital
+    const department = await prisma.department.findUnique({
+      where: {
+        id: departmentId,
+      },
+      include: {
+        hospital: true, // Include hospital information
       },
     });
 
-    return res.status(201).json({
-      message: "Appointment booked successfully",
-      appointment: newAppointment,
+    if (!department || department.hospital.id !== hospitalId) {
+      return res.status(400).json({
+        error: "Requested department does not exist in the given hospital",
+      });
+    }
+
+    // Create the appointment
+    const appointment = await prisma.appointment.create({
+      data: {
+        title,
+        time: new Date(time), // Ensure time is a Date object
+        status: "Scheduled",
+        patient: { connect: { id: patientId } },
+        hospital: { connect: { id: hospitalId } },
+        department: { connect: { id: departmentId } },
+      },
+      include: {
+        patient: { select: { name: true } },
+        hospital: { select: { name: true } },
+        department: { select: { name: true } },
+      },
     });
+
+    return res.status(201).json(appointment);
   } catch (error) {
-    console.error("Error booking appointment:", error);
-    return res.status(500).json({ message: "Something went wrong" });
+    console.error(error);
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
@@ -110,7 +146,7 @@ export const signinPatient = async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: patient.id, email: patient.email },
+      { patientId: patient.id, email: patient.email },
       process.env.JWT_SECRET
     );
 
@@ -119,4 +155,3 @@ export const signinPatient = async (req, res) => {
     res.status(500).json({ message: "Internal Server Error", error });
   }
 };
-

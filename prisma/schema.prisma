@@ -27,22 +27,25 @@ model Hospital {
 }
 
 model Department {
-  id         Int      @id @default(autoincrement())
-  name       String
-  hospitalId Int
-  hospital   Hospital @relation(fields: [hospitalId], references: [id], name: "HospitalDepartments")
-  head       String?
+  id           Int           @id @default(autoincrement())
+  name         String
+  hospitalId   Int
+  hospital     Hospital      @relation(fields: [hospitalId], references: [id], name: "HospitalDepartments")
+  head         String?
+  appointments Appointment[] // This remains the same, as it's already a list and optional
 }
 
 model Appointment {
-  id         Int      @id @default(autoincrement())
-  title      String
-  time       DateTime
-  status     Status
-  patientId  Int
-  hospitalId Int
-  patient    Patient  @relation(fields: [patientId], references: [id])
-  hospital   Hospital @relation(fields: [hospitalId], references: [id])
+  id           Int         @id @default(autoincrement())
+  title        String
+  time         DateTime
+  status       Status
+  patientId    Int
+  hospitalId   Int
+  departmentId Int?
+  patient      Patient     @relation(fields: [patientId], references: [id])
+  hospital     Hospital    @relation(fields: [hospitalId], references: [id])
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 }
 
 enum Status {

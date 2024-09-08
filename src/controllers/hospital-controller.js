@@ -134,7 +134,7 @@ export const signinHospital = async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: hospital.id, email: hospital.email },
+      { hospitalId: hospital.id, email: hospital.email },
       process.env.JWT_SECRET
     );
 
@@ -168,7 +168,8 @@ export const searchHospitals = async (req, res) => {
       },
       include: {
         departments: true,
-        appointments: true,
+        appointments: false,
+        password: false,
       },
     });
 
@@ -176,5 +177,69 @@ export const searchHospitals = async (req, res) => {
   } catch (error) {
     console.error("Error searching hospitals:", error);
     res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const getAppointments = async (req, res) => {
+  const hospitalId = req.hospitalId;
+
+  if (!hospitalId) {
+    return res.status(400).json({
+      error: "Hospital id not found",
+    });
+  }
+
+  try {
+    const appointments = await prisma.appointment.findMany({
+      where: { hospitalId: parseInt(hospitalId) },
+      include: {
+        patient: true,
+        hospital: true,
+      },
+    });
+
+    res.json(appointments);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error retrieving appointments" });
+  }
+};
+
+export const updateAppointmentStatus = async (req, res) => {
+  const { appointmentId } = req.params;
+  const { status } = req.body;
+  const hospitalId = req.hospitalId;
+  if (!["Completed", "Cancelled"].includes(status)) {
+    return res.status(400).json({ error: "Invalid status" });
+  }
+
+  try {
+    // Fetch the appointment to check its hospital association
+    const appointment = await prisma.appointment.findUnique({
+      where: { id: parseInt(appointmentId) },
+      include: { hospital: true },
+    });
+
+    if (!appointment) {
+      return res.status(404).json({ error: "Appointment not found" });
+    }
+
+    // Check if the appointment belongs to the hospital associated with the authenticated user
+    if (appointment.hospital.id !== hospitalId) {
+      return res.status(403).json({
+        error: "Forbidden: Appointment does not belong to your hospital",
+      });
+    }
+
+    // Update the appointment status
+    const updatedAppointment = await prisma.appointment.update({
+      where: { id: parseInt(appointmentId) },
+      data: { status },
+    });
+
+    res.json(updatedAppointment);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error updating appointment status" });
   }
 };

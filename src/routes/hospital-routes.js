@@ -5,6 +5,8 @@ import {
   getDepartmentsByHospital,
   signinHospital,
   searchHospitals,
+  getAppointments,
+  updateAppointmentStatus,
 } from "../controllers/hospital-controller.js";
 import hospitalMiddleware from "../middleware/hospital-auth-middleware.js";
 
@@ -15,5 +17,13 @@ router.post("/signin", signinHospital);
 router.post("/add-departments", hospitalMiddleware, addDepartments);
 router.get("/search", searchHospitals);
 router.get("/departments/:hospitalId", getDepartmentsByHospital);
+
+// appointment routes
+router.get("/appointments", hospitalMiddleware, getAppointments);
+router.patch(
+  "/appointments/:appointmentId",
+  hospitalMiddleware,
+  updateAppointmentStatus
+);
 
 export default router;

@@ -19,7 +19,7 @@ const patientMiddleware = (req, res, next) => {
   try {
     // Verify the token (use your JWT secret from environment variables)
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
+    console.log(decoded)
     // Assuming the token contains the PatientId (or a way to look it up)
     const patientId = decoded.patientId;
     if (!patientId) {
@@ -27,7 +27,7 @@ const patientMiddleware = (req, res, next) => {
     }
 
     // Set the PatientId in the request body (or request object)
-    req.body.patientId = patientId;
+    req.patientId = patientId;
 
     // Move to the next middleware or route handler
     next();
