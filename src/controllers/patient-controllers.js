@@ -29,7 +29,10 @@ export const registerPatient = async (req, res) => {
       },
     });
 
-    const token = jwt.sign({ patientId: patient.id }, process.env.JWT_SECRET);
+    const token = jwt.sign(
+      { patientId: patient.id, email: patient.email },
+      process.env.JWT_SECRET
+    );
 
     return res.status(200).json({
       message: "Patient registered successfully",
@@ -88,4 +91,31 @@ export const bookAppointment = async (req, res) => {
   }
 };
 
+export const signinPatient = async (req, res) => {
+  const { email, password } = req.body;
 
+  try {
+    const patient = await prisma.patient.findUnique({
+      where: { email },
+    });
+
+    if (!patient) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    const isMatch = await bcrypt.compare(password, patient.password);
+
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    const token = jwt.sign(
+      { id: patient.id, email: patient.email },
+      process.env.JWT_SECRET
+    );
+
+    res.json({ token });
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error", error });
+  }
+};

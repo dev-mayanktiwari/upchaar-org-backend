@@ -31,7 +31,7 @@ model Department {
   name       String
   hospitalId Int
   hospital   Hospital @relation(fields: [hospitalId], references: [id], name: "HospitalDepartments")
-  head       String
+  head       String?
 }
 
 model Appointment {

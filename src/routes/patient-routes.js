@@ -1,10 +1,15 @@
 import express from "express";
-import { bookAppointment, registerPatient } from "../controllers/patient-controllers.js";
-import verifyToken from "../middleware/auth-middleware.js";
+import {
+  bookAppointment,
+  registerPatient,
+  signinPatient
+} from "../controllers/patient-controllers.js";
+import patientMiddleware from "../middleware/patient-auth-middleware.js";
 
 const router = express.Router();
 
 router.post("/register", registerPatient);
-router.post("/book-appointment", verifyToken, bookAppointment)
+router.post("/signin", signinPatient);
+router.post("/book-appointment", patientMiddleware, bookAppointment);
 
 export default router;

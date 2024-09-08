@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 dotenv.config(); // Load environment variables
 
 // Middleware to verify the Bearer token and set PatientId in the request body
-const verifyToken = (req, res, next) => {
+const patientMiddleware = (req, res, next) => {
   const authHeader = req.headers["authorization"];
   if (!authHeader) {
     return res.status(401).json({ message: "Authorization header missing" });
@@ -36,4 +36,4 @@ const verifyToken = (req, res, next) => {
   }
 };
 
-export default verifyToken;
+export default patientMiddleware;

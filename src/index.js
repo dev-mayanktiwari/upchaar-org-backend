@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 
 import patientRoutes from "./routes/patient-routes.js";
+import hospitalRoutes from "./routes/hospital-routes.js";
 
 dotenv.config({ path: "../.env" });
 const app = express();
@@ -16,6 +17,7 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/api/v1/patient", patientRoutes);
+app.use("/api/v1/hospital", hospitalRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server is running on ${PORT}`);
