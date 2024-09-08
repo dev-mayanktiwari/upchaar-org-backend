@@ -2,7 +2,7 @@ import express from "express";
 import {
   registerHospital,
   addDepartments,
-  getDepartments,
+  getDepartmentsByHospital,
   signinHospital,
   searchHospitals,
 } from "../controllers/hospital-controller.js";
@@ -11,9 +11,9 @@ import hospitalMiddleware from "../middleware/hospital-auth-middleware.js";
 const router = express.Router();
 
 router.post("/register", registerHospital);
-router.post("/add-departments", hospitalMiddleware, addDepartments);
 router.post("/signin", signinHospital);
+router.post("/add-departments", hospitalMiddleware, addDepartments);
 router.get("/search", searchHospitals);
-router.get("/departments/:hospitalId", getDepartments);
+router.get("/departments/:hospitalId", getDepartmentsByHospital);
 
 export default router;

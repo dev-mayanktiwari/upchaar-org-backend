@@ -99,7 +99,7 @@ export const addDepartments = async (req, res) => {
   }
 };
 
-export const getDepartments = async (req, res) => {
+export const getDepartmentsByHospital = async (req, res) => {
   const { hospitalId } = req.params;
 
   try {
