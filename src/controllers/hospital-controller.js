@@ -170,6 +170,7 @@ export const searchHospitals = async (req, res) => {
         departments: true,
         appointments: false,
         password: false,
+        beds: true,
       },
     });
 
@@ -193,8 +194,8 @@ export const getAppointments = async (req, res) => {
     const appointments = await prisma.appointment.findMany({
       where: { hospitalId: parseInt(hospitalId) },
       include: {
-        patient: true,
-        hospital: true,
+        patient: { select: { name: true, id: true, password: false } },
+        hospital: { select: { name: true, id: true, password: false } },
       },
     });
 
@@ -241,5 +242,49 @@ export const updateAppointmentStatus = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Error updating appointment status" });
+  }
+};
+
+export const setBedDetails = async (req, res) => {
+  const hospitalId = req.hospitalId;
+  const { totalBed, availableBed } = req.body;
+
+  if (!hospitalId || !totalBed || !availableBed) {
+    return res.status(400).json({
+      error: "Missing required fields",
+    });
+  }
+
+  try {
+    const hospitalBedDetails = await prisma.bedCount.upsert({
+      where: {
+        hospitalId,
+      },
+      create: {
+        hospitalId,
+        totalBed,
+        availableBed,
+      },
+      update: {
+        totalBed,
+        availableBed,
+      },
+    });
+
+    if (!hospitalBedDetails) {
+      return res.status(500).json({
+        error: "Unable to add bed details",
+      });
+    }
+
+    return res.status(201).json({
+      message: "Bed details updated successfully",
+      details: hospitalBedDetails,
+    });
+  } catch (error) {
+    console.log("Error in updating bed details:", error);
+    return res.status(500).json({
+      error: "Error in updating bed details",
+    });
   }
 };

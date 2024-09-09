@@ -57,74 +57,74 @@ export const registerPatient = async (req, res) => {
 
 export const bookAppointment = async (req, res) => {
   const { hospitalId, departmentId, title, time } = req.body;
-  const patientId = req.patientId; // Get patient ID from authenticated user
+  const patientId = req.patientId;
 
   if (!patientId) {
-    return res.status(400).json({ error: "PatientId not found" });
+    return res.status(400).json({ error: "Patient ID not found" });
   }
 
   try {
-    // Validate input
-    if (!hospitalId || !departmentId || !title || !time) {
-      return res.status(400).json({ error: "All fields are required" });
-    }
-
-    // Check if the patient exists
-    const patient = await prisma.patient.findUnique({
-      where: { id: patientId },
-    });
-    if (!patient) return res.status(404).json({ error: "Patient not found" });
-
-    // Check if the hospital exists
-    const hospital = await prisma.hospital.findUnique({
-      where: {
-        id: hospitalId,
-      },
-    });
-    if (!hospital) {
-      return res.status(400).json({
-        error: "Hospital not found",
-      });
-    }
-
-    // Check if the department exists in the given hospital
-    const department = await prisma.department.findUnique({
-      where: {
-        id: departmentId,
-      },
-      include: {
-        hospital: true, // Include hospital information
-      },
-    });
-
-    if (!department || department.hospital.id !== hospitalId) {
-      return res.status(400).json({
-        error: "Requested department does not exist in the given hospital",
-      });
-    }
-
     // Create the appointment
-    const appointment = await prisma.appointment.create({
+    let appointment = await prisma.appointment.create({
       data: {
         title,
-        time: new Date(time), // Ensure time is a Date object
+        time,
         status: "Scheduled",
-        patient: { connect: { id: patientId } },
-        hospital: { connect: { id: hospitalId } },
-        department: { connect: { id: departmentId } },
-      },
-      include: {
-        patient: { select: { name: true } },
-        hospital: { select: { name: true } },
-        department: { select: { name: true } },
+        patientId,
+        hospitalId: parseInt(hospitalId, 10),
+        departmentId: parseInt(departmentId, 10),
       },
     });
 
-    return res.status(201).json(appointment);
+    if (departmentId) {
+      // Handle queue management
+      const queue = await handleQueueManagement(departmentId, appointment.id);
+
+      // Update the appointment with the queue details
+      appointment = await prisma.appointment.update({
+        where: { id: appointment.id },
+        data: {
+          queueId: queue.id,
+          queuePosition: queue.currentPosition,
+        },
+      });
+    }
+
+    return res.status(201).json({
+      message: "Appointment created",
+      appointment,
+    });
   } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: "Internal Server Error" });
+    console.error("Error in creating appointment:", error);
+    return res.status(500).json({ error: "Error in creating appointment" });
   }
+};
+
+// Function to manage queue
+const handleQueueManagement = async (departmentId, appointmentId) => {
+  let queue = await prisma.queue.findUnique({
+    where: { departmentId },
+  });
+
+  if (!queue) {
+    queue = await prisma.queue.create({
+      data: {
+        departmentId,
+        currentPosition: 1,
+        lastUpdated: new Date(),
+      },
+    });
+  } else {
+    await prisma.queue.update({
+      where: { id: queue.id },
+      data: {
+        currentPosition: { increment: 1 },
+        lastUpdated: new Date(),
+      },
+    });
+  }
+
+  return queue;
 };
 
 export const signinPatient = async (req, res) => {
@@ -153,5 +153,64 @@ export const signinPatient = async (req, res) => {
     res.json({ token });
   } catch (error) {
     res.status(500).json({ message: "Internal Server Error", error });
+  }
+};
+
+export const checkQueueStatus = async (req, res) => {
+  const { appointmentId } = req.params;
+
+  try {
+    // Find the appointment
+    const appointment = await prisma.appointment.findUnique({
+      where: { id: Number(appointmentId) },
+      include: {
+        queue: true, // Include queue information
+      },
+    });
+
+    if (!appointment) {
+      return res.status(404).json({ error: "Appointment not found" });
+    }
+
+    if (!appointment.queueId) {
+      return res
+        .status(404)
+        .json({ error: "Queue not found for this appointment" });
+    }
+
+    // Find the queue
+    const queue = await prisma.queue.findUnique({
+      where: { id: appointment.queueId },
+      include: {
+        appointments: true, // Include all appointments in the queue
+      },
+    });
+
+    if (!queue) {
+      return res.status(404).json({ error: "Queue not found" });
+    }
+
+    // Ensure queue appointments are sorted by position
+    const sortedAppointments = queue.appointments.sort(
+      (a, b) => a.queuePosition - b.queuePosition
+    );
+
+    // Calculate the user's position and the number of people ahead
+    const userPosition = appointment.queuePosition;
+    const peopleAhead = sortedAppointments.filter(
+      (app) => app.queuePosition < userPosition
+    ).length;
+
+    return res.status(200).json({
+      message: "Queue status retrieved successfully",
+      queue: {
+        currentPosition: queue.currentPosition,
+        userPosition,
+        peopleAhead,
+      },
+    });
+  } catch (error) {
+    console.error("Error retrieving queue status:", error);
+    return res.status(500).json({ error: "Error retrieving queue status" });
   }
 };

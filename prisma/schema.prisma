@@ -24,6 +24,7 @@ model Hospital {
   location     String
   departments  Department[]  @relation("HospitalDepartments")
   appointments Appointment[]
+  beds         BedCount?     @relation("HospitalToBed")
 }
 
 model Department {
@@ -32,20 +33,41 @@ model Department {
   hospitalId   Int
   hospital     Hospital      @relation(fields: [hospitalId], references: [id], name: "HospitalDepartments")
   head         String?
-  appointments Appointment[] // This remains the same, as it's already a list and optional
+  appointments Appointment[] // List of appointments within this department
+  queues       Queue[]       @relation("DepartmentQueues")
+}
+
+model Queue {
+  id              Int           @id @default(autoincrement())
+  departmentId    Int           @unique
+  department      Department    @relation(fields: [departmentId], references: [id], name: "DepartmentQueues")
+  appointments    Appointment[] @relation("QueueAppointments")
+  currentPosition Int           @default(0)
+  lastUpdated     DateTime      @default(now())
 }
 
 model Appointment {
-  id           Int         @id @default(autoincrement())
-  title        String
-  time         DateTime
-  status       Status
-  patientId    Int
-  hospitalId   Int
-  departmentId Int?
-  patient      Patient     @relation(fields: [patientId], references: [id])
-  hospital     Hospital    @relation(fields: [hospitalId], references: [id])
-  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  id            Int         @id @default(autoincrement())
+  title         String
+  time          DateTime
+  status        Status
+  patientId     Int
+  hospitalId    Int
+  departmentId  Int?
+  patient       Patient     @relation(fields: [patientId], references: [id])
+  hospital      Hospital    @relation(fields: [hospitalId], references: [id])
+  department    Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  queue         Queue?      @relation(fields: [queueId], references: [id], name: "QueueAppointments")
+  queueId       Int?
+  queuePosition Int?
+}
+
+model BedCount {
+  id           Int      @id @default(autoincrement())
+  totalBed     Int      @default(100)
+  availableBed Int      @default(100)
+  hospitalId   Int      @unique
+  hospital     Hospital @relation(fields: [hospitalId], references: [id], name: "HospitalToBed")
 }
 
 enum Status {
