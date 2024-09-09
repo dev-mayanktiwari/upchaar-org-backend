@@ -288,3 +288,35 @@ export const setBedDetails = async (req, res) => {
     });
   }
 };
+
+export const getBedDetails = async(req, res) => {
+  const { hospitalId } = req;
+
+  if (!hospitalId) {
+      return res.status(400).json({
+          error: "Hospital ID is required."
+      });
+  }
+
+  try {
+      const bedDetails = await prisma.bedCount.findUnique({
+          where: { hospitalId }
+      });
+
+      if (!bedDetails) {
+          return res.status(404).json({
+              error: "Bed details not found for the specified hospital."
+          });
+      }
+
+      return res.status(200).json({
+          message: "Details found.",
+          details: bedDetails
+      });
+  } catch (error) {
+      console.error("Error retrieving bed details:", error);
+      return res.status(500).json({
+          error: "An error occurred while fetching bed details."
+      });
+  }
+};
