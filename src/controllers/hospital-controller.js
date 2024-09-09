@@ -336,3 +336,72 @@ export const getDepartmentsProtected = async (req, res) => {
     return res.status(500).json({ message: "Error fetching departments" });
   }
 };
+
+export const addMedicine = async (req, res) => {
+  const { name, quantity, expiryDate } = req.body;
+  const { hospitalId } = req;
+  try {
+    const newMedicine = await prisma.medicineInventory.create({
+      data: {
+        name,
+        quantity: parseInt(quantity, 10),
+        expiryDate: new Date(expiryDate),
+        hospitalId,
+      },
+    });
+    return res.status(201).json(newMedicine);
+  } catch (error) {
+    console.log("Error in adding medicine", error);
+    return res.status(500).json({ error: "Failed to add medicine" });
+  }
+};
+
+export const viewMedicine = async (req, res) => {
+  const { hospitalId } = req;
+
+  try {
+    const medicines = await prisma.medicineInventory.findMany({
+      where: { hospitalId: parseInt(hospitalId, 10) },
+    });
+    return res.json(medicines);
+  } catch (error) {
+    console.log("Error in viewing medicine", error);
+    return res.status(500).json({ error: "Failed to retrieve medicines" });
+  }
+};
+
+export const editMedicine = async (req, res) => {
+  const { id } = req.params;
+  const { name, quantity, expiryDate } = req.body;
+
+  try {
+    const updatedMedicine = await prisma.medicineInventory.update({
+      where: { id: parseInt(id, 10) },
+      data: {
+        name,
+        quantity: parseInt(quantity, 10),
+        expiryDate: new Date(expiryDate),
+      },
+    });
+    return res.json(updatedMedicine);
+  } catch (error) {
+    console.log("Error in updating medicine", error);
+    return res.status(500).json({ error: "Failed to update medicine" });
+  }
+};
+
+export const deleteMedicine = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    await prisma.medicineInventory.delete({
+      where: { id: parseInt(id, 10) },
+    });
+    return res.status(204).json({
+      message: "Medicine deleted successfully",
+    });
+  } catch (error) {
+    console.log("Error in deleting medicine", error);
+    return res.status(500).json({ error: "Failed to delete medicine" });
+  }
+};

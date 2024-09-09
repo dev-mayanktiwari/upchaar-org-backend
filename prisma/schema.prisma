@@ -17,14 +17,15 @@ model Patient {
 }
 
 model Hospital {
-  id           Int           @id @default(autoincrement())
-  name         String
-  email        String        @unique
-  password     String
-  location     String
-  departments  Department[]  @relation("HospitalDepartments")
-  appointments Appointment[]
-  beds         BedCount?     @relation("HospitalToBed")
+  id                  Int                 @id @default(autoincrement())
+  name                String
+  email               String              @unique
+  password            String
+  location            String
+  departments         Department[]        @relation("HospitalDepartments")
+  appointments        Appointment[]
+  beds                BedCount?           @relation("HospitalToBed")
+  medicineInventories MedicineInventory[]
 }
 
 model Department {
@@ -68,6 +69,17 @@ model BedCount {
   availableBed Int      @default(100)
   hospitalId   Int      @unique
   hospital     Hospital @relation(fields: [hospitalId], references: [id], name: "HospitalToBed")
+}
+
+model MedicineInventory {
+  id         Int      @id @default(autoincrement())
+  name       String
+  quantity   Int
+  expiryDate DateTime
+  hospitalId Int
+  hospital   Hospital @relation(fields: [hospitalId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 enum Status {

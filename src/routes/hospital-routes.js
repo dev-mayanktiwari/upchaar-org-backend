@@ -9,7 +9,11 @@ import {
   updateAppointmentStatus,
   setBedDetails,
   getBedDetails,
-  getDepartmentsProtected
+  getDepartmentsProtected,
+  addMedicine,
+  editMedicine,
+  viewMedicine,
+  deleteMedicine,
 } from "../controllers/hospital-controller.js";
 import hospitalMiddleware from "../middleware/hospital-auth-middleware.js";
 
@@ -19,6 +23,10 @@ router.post("/register", registerHospital);
 router.post("/signin", signinHospital);
 router.post("/add-departments", hospitalMiddleware, addDepartments);
 router.post("/update-bed-details", hospitalMiddleware, setBedDetails);
+router.post("/add-medicine", hospitalMiddleware, addMedicine);
+router.put("/edit-medicine/:id", hospitalMiddleware, editMedicine);
+router.delete("/delete-medicine/:id", hospitalMiddleware, deleteMedicine);
+router.get("/view-medicine", hospitalMiddleware, viewMedicine);
 router.get("/get-bed-details", hospitalMiddleware, getBedDetails);
 router.get("/search", searchHospitals);
 router.get("/departments/:hospitalId", getDepartmentsByHospital);
