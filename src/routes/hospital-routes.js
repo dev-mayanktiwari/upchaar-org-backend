@@ -8,7 +8,8 @@ import {
   getAppointments,
   updateAppointmentStatus,
   setBedDetails,
-  getBedDetails
+  getBedDetails,
+  getDepartmentsProtected
 } from "../controllers/hospital-controller.js";
 import hospitalMiddleware from "../middleware/hospital-auth-middleware.js";
 
@@ -21,6 +22,7 @@ router.post("/update-bed-details", hospitalMiddleware, setBedDetails);
 router.get("/get-bed-details", hospitalMiddleware, getBedDetails);
 router.get("/search", searchHospitals);
 router.get("/departments/:hospitalId", getDepartmentsByHospital);
+router.get("/departments", hospitalMiddleware, getDepartmentsProtected);
 
 // appointment routes
 router.get("/appointments", hospitalMiddleware, getAppointments);
