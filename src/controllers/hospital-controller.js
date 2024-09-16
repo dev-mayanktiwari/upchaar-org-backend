@@ -1,13 +1,23 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../utils/generate-prismaclient-util.js";
+import client from "../utils/redisClient.js";
 
 export const registerHospital = async (req, res) => {
-  const { name, email, password, location, departments } = req.body;
-
+  const {
+    name,
+    email,
+    contact,
+    password,
+    departments,
+    zipcode,
+    location,
+    rating,
+  } = req.body;
+  console.log(req.body);
   // Check if the hospital email already exists
   const existingHospital = await prisma.hospital.findUnique({
-    where: { email },
+    where: { email: email },
   });
   if (existingHospital) {
     return res.status(400).json({ message: "Hospital already exists" });
@@ -23,6 +33,10 @@ export const registerHospital = async (req, res) => {
       data: {
         name,
         email,
+        contact,
+        location,
+        zipcode,
+        rating,
         password: hashedPassword,
         location,
         departments: {
@@ -166,11 +180,39 @@ export const searchHospitals = async (req, res) => {
           },
         ],
       },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        contact: true,
+        email: true,
+        location: true,
         departments: true,
-        appointments: false,
-        password: false,
-        beds: true,
+        zipcode: true,
+        rating: true,
+        beds: {
+          select: {
+            totalAvailableBeds: true,
+            totalBeds: true,
+            icu: {
+              select: {
+                totalBed: true,
+                availableBed: true,
+              },
+            },
+            general: {
+              select: {
+                totalBed: true,
+                availableBed: true,
+              },
+            },
+            premium: {
+              select: {
+                totalBed: true,
+                availableBed: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -210,14 +252,14 @@ export const updateAppointmentStatus = async (req, res) => {
   const { appointmentId } = req.params;
   const { status } = req.body;
   const hospitalId = req.hospitalId;
-  if (!["Completed", "Cancelled"].includes(status)) {
+
+  if (!["Completed", "Cancelled", "Confirmed"].includes(status)) {
     return res.status(400).json({ error: "Invalid status" });
   }
 
   try {
-    // Fetch the appointment to check its hospital association
     const appointment = await prisma.appointment.findUnique({
-      where: { id: parseInt(appointmentId) },
+      where: { id: parseInt(appointmentId, 10) },
       include: { hospital: true },
     });
 
@@ -225,53 +267,136 @@ export const updateAppointmentStatus = async (req, res) => {
       return res.status(404).json({ error: "Appointment not found" });
     }
 
-    // Check if the appointment belongs to the hospital associated with the authenticated user
     if (appointment.hospital.id !== hospitalId) {
       return res.status(403).json({
         error: "Forbidden: Appointment does not belong to your hospital",
       });
     }
 
-    // Update the appointment status
     const updatedAppointment = await prisma.appointment.update({
-      where: { id: parseInt(appointmentId) },
-      data: { status },
+      where: { id: parseInt(appointmentId, 10) },
+      data: { appointmentStatus: status },
     });
 
-    res.json(updatedAppointment);
+    const pendingQueueKey = `hospital:${appointment.hospitalId}:department:${appointment.departmentId}:pending-queue`;
+    const confirmedQueueKey = `hospital:${appointment.hospitalId}:department:${appointment.departmentId}:confirmed-queue`;
+
+    if (status === "Confirmed") {
+      await client.zRem(pendingQueueKey, String(appointmentId));
+      await client.zAdd(confirmedQueueKey, {
+        score: updatedAppointment.id,
+        value: String(appointmentId),
+      });
+    } else if (status === "Cancelled" || status === "Completed") {
+      await client.zRem(pendingQueueKey, String(appointmentId));
+      await client.zRem(confirmedQueueKey, String(appointmentId));
+    }
+
+    res.status(200).json({
+      message: "Appointment status updated successfully",
+      appointment: updatedAppointment,
+    });
   } catch (error) {
-    console.error(error);
+    console.error("Error updating appointment status:", error);
     res.status(500).json({ error: "Error updating appointment status" });
   }
 };
 
 export const setBedDetails = async (req, res) => {
   const hospitalId = req.hospitalId;
-  const { totalBed, availableBed } = req.body;
+  const {
+    totalICU,
+    availableICU,
+    totalGeneral,
+    availableGeneral,
+    totalPremium,
+    availablePremium,
+  } = req.body;
 
-  if (!hospitalId || !totalBed || !availableBed) {
+  if (
+    !hospitalId ||
+    !totalICU ||
+    !availableICU ||
+    !totalGeneral ||
+    !availableGeneral ||
+    !totalPremium ||
+    !availablePremium
+  ) {
     return res.status(400).json({
       error: "Missing required fields",
     });
   }
 
   try {
-    const hospitalBedDetails = await prisma.bedCount.upsert({
+    const totalBed =
+      parseInt(totalICU, 10) +
+      parseInt(totalPremium, 10) +
+      parseInt(totalGeneral, 10);
+
+    const totalAvailableBed =
+      parseInt(availableICU, 10) +
+      parseInt(availablePremium, 10) +
+      parseInt(availableGeneral, 10);
+
+    const updatedBedCount = await prisma.bedCount.upsert({
       where: {
-        hospitalId,
-      },
-      create: {
-        hospitalId,
-        totalBed,
-        availableBed,
+        hospitalId: parseInt(hospitalId, 10),
       },
       update: {
-        totalBed,
-        availableBed,
+        totalBeds: totalBed,
+        totalAvailableBeds: totalAvailableBed,
+        icu: {
+          update: {
+            totalBed: parseInt(totalICU, 10),
+            availableBed: parseInt(availableICU),
+          },
+        },
+        general: {
+          update: {
+            totalBed: parseInt(totalGeneral, 10),
+            availableBed: parseInt(availableGeneral, 10),
+          },
+        },
+        premium: {
+          update: {
+            totalBed: parseInt(totalPremium, 10),
+            availableBed: parseInt(availablePremium, 10),
+          },
+        },
+      },
+      create: {
+        hospitalId: parseInt(hospitalId, 10),
+        totalBeds: totalBed,
+        totalAvailableBeds: totalAvailableBed,
+        icu: {
+          create: {
+            totalBed: parseInt(totalICU, 10),
+            availableBed: parseInt(availableICU, 10),
+          },
+        },
+        general: {
+          create: {
+            totalBed: parseInt(totalGeneral, 10),
+            availableBed: parseInt(availableGeneral, 10),
+          },
+        },
+        premium: {
+          create: {
+            totalBed: parseInt(totalPremium, 10),
+            availableBed: parseInt(availablePremium, 10),
+          },
+        },
+      },
+      select: {
+        totalAvailableBeds: true,
+        totalBeds: true,
+        icu: true,
+        general: true,
+        premium: true,
       },
     });
 
-    if (!hospitalBedDetails) {
+    if (!updatedBedCount) {
       return res.status(500).json({
         error: "Unable to add bed details",
       });
@@ -279,7 +404,7 @@ export const setBedDetails = async (req, res) => {
 
     return res.status(201).json({
       message: "Bed details updated successfully",
-      details: hospitalBedDetails,
+      details: updatedBedCount,
     });
   } catch (error) {
     console.log("Error in updating bed details:", error);
@@ -403,5 +528,64 @@ export const deleteMedicine = async (req, res) => {
   } catch (error) {
     console.log("Error in deleting medicine", error);
     return res.status(500).json({ error: "Failed to delete medicine" });
+  }
+};
+
+export const getHospitalDetail = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const hospital = await prisma.hospital.findUnique({
+      where: {
+        id: parseInt(id, 10),
+      },
+      select: {
+        name: true,
+        contact: true,
+        email: true,
+        location: true,
+        departments: true,
+        zipcode: true,
+        rating: true,
+        beds: {
+          select: {
+            totalAvailableBeds: true,
+            totalBeds: true,
+            icu: {
+              select: {
+                totalBed: true,
+                availableBed: true,
+              },
+            },
+            general: {
+              select: {
+                totalBed: true,
+                availableBed: true,
+              },
+            },
+            premium: {
+              select: {
+                totalBed: true,
+                availableBed: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!hospital) {
+      return res.status(500).json({
+        error: "Hospital not found",
+      });
+    }
+
+    return res.status(200).json({
+      hospital: hospital,
+    });
+  } catch (e) {
+    console.log("Error in finding hospital", e);
+    return res.status(500).json({
+      error: "Server error",
+    });
   }
 };

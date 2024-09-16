@@ -12,6 +12,6 @@ const router = express.Router();
 router.post("/register", registerPatient);
 router.post("/signin", signinPatient);
 router.post("/book-appointment", patientMiddleware, bookAppointment);
-router.post("/check-appointment-status/:appointmentId", checkQueueStatus);
+router.get("/check-appointment-status/:appointmentId", checkQueueStatus);
 
 export default router;

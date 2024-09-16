@@ -13,15 +13,19 @@ model Patient {
   email        String        @unique
   password     String
   age          Int
+  contact      String        @default("999999")
   appointments Appointment[]
 }
 
 model Hospital {
   id                  Int                 @id @default(autoincrement())
   name                String
+  contact             String              
   email               String              @unique
   password            String
   location            String
+  zipcode             Int             
+  rating              Int                 
   departments         Department[]        @relation("HospitalDepartments")
   appointments        Appointment[]
   beds                BedCount?           @relation("HospitalToBed")
@@ -35,40 +39,54 @@ model Department {
   hospital     Hospital      @relation(fields: [hospitalId], references: [id], name: "HospitalDepartments")
   head         String?
   appointments Appointment[] // List of appointments within this department
-  queues       Queue[]       @relation("DepartmentQueues")
-}
-
-model Queue {
-  id              Int           @id @default(autoincrement())
-  departmentId    Int           @unique
-  department      Department    @relation(fields: [departmentId], references: [id], name: "DepartmentQueues")
-  appointments    Appointment[] @relation("QueueAppointments")
-  currentPosition Int           @default(0)
-  lastUpdated     DateTime      @default(now())
 }
 
 model Appointment {
-  id            Int         @id @default(autoincrement())
-  title         String
-  time          DateTime
-  status        Status
-  patientId     Int
-  hospitalId    Int
-  departmentId  Int?
-  patient       Patient     @relation(fields: [patientId], references: [id])
-  hospital      Hospital    @relation(fields: [hospitalId], references: [id])
-  department    Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  queue         Queue?      @relation(fields: [queueId], references: [id], name: "QueueAppointments")
-  queueId       Int?
-  queuePosition Int?
+  id                Int         @id @default(autoincrement())
+  title             String
+  time              DateTime
+  appointmentStatus Status      @default(Pending)
+  patientId         Int
+  hospitalId        Int
+  departmentId      Int?
+  patient           Patient     @relation(fields: [patientId], references: [id])
+  hospital          Hospital    @relation(fields: [hospitalId], references: [id])
+  department        Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 }
 
 model BedCount {
+  id                 Int      @id @default(autoincrement())
+  hospitalId         Int      @unique
+  hospital           Hospital @relation(fields: [hospitalId], references: [id], name: "HospitalToBed")
+  totalBeds          Int
+  totalAvailableBeds Int
+  icu                ICU?
+  general            General?
+  premium            Premium?
+}
+
+model ICU {
   id           Int      @id @default(autoincrement())
-  totalBed     Int      @default(100)
-  availableBed Int      @default(100)
-  hospitalId   Int      @unique
-  hospital     Hospital @relation(fields: [hospitalId], references: [id], name: "HospitalToBed")
+  totalBed     Int      @default(50)
+  availableBed Int      @default(20)
+  bedCountId   Int      @unique
+  bedCount     BedCount @relation(fields: [bedCountId], references: [id])
+}
+
+model General {
+  id           Int      @id @default(autoincrement())
+  totalBed     Int      @default(200)
+  availableBed Int      @default(120)
+  bedCountId   Int      @unique
+  bedCount     BedCount @relation(fields: [bedCountId], references: [id])
+}
+
+model Premium {
+  id           Int      @id @default(autoincrement())
+  totalBed     Int      @default(80)
+  availableBed Int      @default(20)
+  bedCountId   Int      @unique
+  bedCount     BedCount @relation(fields: [bedCountId], references: [id])
 }
 
 model MedicineInventory {
@@ -83,7 +101,8 @@ model MedicineInventory {
 }
 
 enum Status {
-  Scheduled
+  Pending
+  Confirmed
   Completed
   Cancelled
 }

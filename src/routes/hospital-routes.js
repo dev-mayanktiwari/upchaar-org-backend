@@ -14,6 +14,7 @@ import {
   editMedicine,
   viewMedicine,
   deleteMedicine,
+  getHospitalDetail
 } from "../controllers/hospital-controller.js";
 import hospitalMiddleware from "../middleware/hospital-auth-middleware.js";
 
@@ -31,6 +32,7 @@ router.get("/get-bed-details", hospitalMiddleware, getBedDetails);
 router.get("/search", searchHospitals);
 router.get("/departments/:hospitalId", getDepartmentsByHospital);
 router.get("/departments", hospitalMiddleware, getDepartmentsProtected);
+router.get("/get-hospital-detail/:id", getHospitalDetail);
 
 // appointment routes
 router.get("/appointments", hospitalMiddleware, getAppointments);

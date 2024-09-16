@@ -1,6 +1,7 @@
 import prisma from "../utils/generate-prismaclient-util.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
+import client from "../utils/redisClient.js";
 
 export const registerPatient = async (req, res) => {
   const body = req.body;
@@ -24,7 +25,8 @@ export const registerPatient = async (req, res) => {
       data: {
         name: body.name,
         email: body.email,
-        age: body.age,
+        contact: body.contact,
+        age: parseInt(body.age, 10),
         password: hashedPassword,
       },
       select: {
@@ -53,78 +55,6 @@ export const registerPatient = async (req, res) => {
       error: "Failed to register patient",
     });
   }
-};
-
-export const bookAppointment = async (req, res) => {
-  const { hospitalId, departmentId, title, time } = req.body;
-  const patientId = req.patientId;
-
-  if (!patientId) {
-    return res.status(400).json({ error: "Patient ID not found" });
-  }
-
-  try {
-    // Create the appointment
-    let appointment = await prisma.appointment.create({
-      data: {
-        title,
-        time,
-        status: "Scheduled",
-        patientId,
-        hospitalId: parseInt(hospitalId, 10),
-        departmentId: parseInt(departmentId, 10),
-      },
-    });
-
-    if (departmentId) {
-      // Handle queue management
-      const queue = await handleQueueManagement(departmentId, appointment.id);
-
-      // Update the appointment with the queue details
-      appointment = await prisma.appointment.update({
-        where: { id: appointment.id },
-        data: {
-          queueId: queue.id,
-          queuePosition: queue.currentPosition,
-        },
-      });
-    }
-
-    return res.status(201).json({
-      message: "Appointment created",
-      appointment,
-    });
-  } catch (error) {
-    console.error("Error in creating appointment:", error);
-    return res.status(500).json({ error: "Error in creating appointment" });
-  }
-};
-
-// Function to manage queue
-const handleQueueManagement = async (departmentId, appointmentId) => {
-  let queue = await prisma.queue.findUnique({
-    where: { departmentId },
-  });
-
-  if (!queue) {
-    queue = await prisma.queue.create({
-      data: {
-        departmentId,
-        currentPosition: 1,
-        lastUpdated: new Date(),
-      },
-    });
-  } else {
-    await prisma.queue.update({
-      where: { id: queue.id },
-      data: {
-        currentPosition: { increment: 1 },
-        lastUpdated: new Date(),
-      },
-    });
-  }
-
-  return queue;
 };
 
 export const signinPatient = async (req, res) => {
@@ -156,15 +86,55 @@ export const signinPatient = async (req, res) => {
   }
 };
 
+export const bookAppointment = async (req, res) => {
+  const { hospitalId, departmentId, title, time } = req.body;
+  const patientId = req.patientId;
+
+  if (!patientId) {
+    return res.status(400).json({ error: "Patient ID not found" });
+  }
+
+  try {
+    // Create the appointment
+    console.log(req.body);
+    let appointment = await prisma.appointment.create({
+      data: {
+        title,
+        time,
+        appointmentStatus: "Pending",
+        patientId,
+        hospitalId: parseInt(hospitalId, 10),
+        departmentId: parseInt(departmentId, 10),
+      },
+    });
+
+    const queueKey = `hospital:${hospitalId}:department:${departmentId}:pending-queue`;
+    await client.zAdd(queueKey, {
+      score: appointment.id,
+      value: String(appointment.id),
+    });
+
+    return res.status(201).json({
+      message: "Appointment created",
+      appointment,
+    });
+  } catch (error) {
+    console.error("Error in creating appointment:", error);
+    return res.status(500).json({ error: "Error in creating appointment" });
+  }
+};
+
 export const checkQueueStatus = async (req, res) => {
   const { appointmentId } = req.params;
 
   try {
-    // Find the appointment
     const appointment = await prisma.appointment.findUnique({
       where: { id: Number(appointmentId) },
-      include: {
-        queue: true, // Include queue information
+      select: {
+        id: true,
+        hospitalId: true,
+        appointmentStatus: true,
+        departmentId: true,
       },
     });
 
@@ -172,41 +142,32 @@ export const checkQueueStatus = async (req, res) => {
       return res.status(404).json({ error: "Appointment not found" });
     }
 
-    if (!appointment.queueId) {
+    if (
+      ["Pending", "Cancelled", "Completed"].includes(
+        appointment.appointmentStatus
+      )
+    ) {
+      return res.status(200).json({ status: appointment.appointmentStatus });
+    }
+
+    const queueKey = `hospital:${appointment.hospitalId}:department:${appointment.departmentId}:confirmed-queue`;
+
+    const userPosition = await client.zRank(queueKey, String(appointmentId));
+    const totalQueueLength = await client.zCard(queueKey);
+
+    if (userPosition === null) {
       return res
         .status(404)
-        .json({ error: "Queue not found for this appointment" });
+        .json({ error: "Appointment not found in the queue" });
     }
-
-    // Find the queue
-    const queue = await prisma.queue.findUnique({
-      where: { id: appointment.queueId },
-      include: {
-        appointments: true, // Include all appointments in the queue
-      },
-    });
-
-    if (!queue) {
-      return res.status(404).json({ error: "Queue not found" });
-    }
-
-    // Ensure queue appointments are sorted by position
-    const sortedAppointments = queue.appointments.sort(
-      (a, b) => a.queuePosition - b.queuePosition
-    );
-
-    // Calculate the user's position and the number of people ahead
-    const userPosition = appointment.queuePosition;
-    const peopleAhead = sortedAppointments.filter(
-      (app) => app.queuePosition < userPosition
-    ).length;
 
     return res.status(200).json({
       message: "Queue status retrieved successfully",
+      status: "Confirmed",
       queue: {
-        currentPosition: queue.currentPosition,
-        userPosition,
-        peopleAhead,
+        userPosition: userPosition + 1,
+        peopleAhead: userPosition,
+        totalQueueLength,
       },
     });
   } catch (error) {

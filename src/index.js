@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 
+import client from "./utils/redisClient.js";
 import patientRoutes from "./routes/patient-routes.js";
 import hospitalRoutes from "./routes/hospital-routes.js";
 
@@ -19,6 +20,32 @@ app.get("/health", (req, res) => {
 app.use("/api/v1/patient", patientRoutes);
 app.use("/api/v1/hospital", hospitalRoutes);
 
-app.listen(PORT, () => {
-  console.log(`Server is running on ${PORT}`);
+let redisClient;
+
+app.listen(PORT, async () => {
+  try {
+    
+    await client.connect();
+
+    console.log("Redis connected successfully");
+    console.log(`Server is running on ${PORT}`);
+  } catch (error) {
+    console.error("Error connecting to Redis:", error);
+    process.exit(1); // Exit process if Redis connection fails
+  }
+});
+
+// Graceful shutdown
+process.on("SIGTERM", async () => {
+  if (redisClient) {
+    await redisClient.quit();
+  }
+  process.exit(0);
+});
+
+process.on("SIGINT", async () => {
+  if (redisClient) {
+    await redisClient.quit();
+  }
+  process.exit(0);
 });
