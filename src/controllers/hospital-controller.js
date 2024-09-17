@@ -35,7 +35,7 @@ export const registerHospital = async (req, res) => {
         email,
         contact,
         location,
-        zipcode,
+        zipcode: parseInt(zipcode, 10),
         rating,
         password: hashedPassword,
         location,
@@ -233,11 +233,40 @@ export const getAppointments = async (req, res) => {
   }
 
   try {
+    // const appointments = await prisma.appointment.findMany({
+    //   where: { hospitalId: parseInt(hospitalId) },
+    //   include: {
+    //     appointmentStatus,
+    //     department: { select: { name: true } },
+    //     patient: { select: { name: true, id: true, password: false } },
+    //     hospital: { select: { name: true, id: true, password: false } },
+    //   },
+    // });
+
     const appointments = await prisma.appointment.findMany({
-      where: { hospitalId: parseInt(hospitalId) },
-      include: {
-        patient: { select: { name: true, id: true, password: false } },
-        hospital: { select: { name: true, id: true, password: false } },
+      where: {
+        hospitalId: parseInt(hospitalId, 10),
+      },
+      select: {
+        id: true,
+        title: true,
+        time: true,
+        appointmentStatus: true,
+        department: {
+          select: {
+            name: true,
+          },
+        },
+        patient: {
+          select: {
+            name: true,
+          },
+        },
+        hospital: {
+          select: {
+            name: true,
+          },
+        },
       },
     });
 

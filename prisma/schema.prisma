@@ -25,7 +25,7 @@ model Hospital {
   password            String
   location            String
   zipcode             Int             
-  rating              Int                 
+  rating              Int                 @default(4)
   departments         Department[]        @relation("HospitalDepartments")
   appointments        Appointment[]
   beds                BedCount?           @relation("HospitalToBed")

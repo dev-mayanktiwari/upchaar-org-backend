@@ -175,3 +175,36 @@ export const checkQueueStatus = async (req, res) => {
     return res.status(500).json({ error: "Error retrieving queue status" });
   }
 };
+
+export const getAllAppointments = async (req, res) => {
+  const patientId = req.patientId;
+
+  if (!patientId) {
+    return res.status(400).json({
+      error: "Patient ID is required",
+    });
+  }
+
+  try {
+    const appointments = await prisma.appointment.findMany({
+      where: {
+        patientId: parseInt(patientId, 10),
+      },
+    });
+
+    if (appointments.length === 0) {
+      return res.status(404).json({
+        error: "No appointments found for the given user",
+      });
+    }
+
+    return res.status(200).json({
+      appointments: appointments,
+    });
+  } catch (err) {
+    console.error("Error finding appointments", err);
+    return res.status(500).json({
+      error: "Internal server error",
+    });
+  }
+};
